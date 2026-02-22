@@ -1,0 +1,57 @@
+<div class="map-tracker-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Map Tracker</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="map-tracker-block">
+                <label class="checkbox_label" for="map_tracker_enabled">
+                    <input type="checkbox" id="map_tracker_enabled" />
+                    <span>Enable location prompt injection</span>
+                </label>
+                <small>When enabled, a hidden instruction is added to the AI prompt asking it to include location tags
+                    in responses.</small>
+            </div>
+            <div class="map-tracker-block">
+                <label class="checkbox_label" for="map_tracker_use_tool_calling">
+                    <input type="checkbox" id="map_tracker_use_tool_calling" />
+                    <span>Use Tool Calling (recommended)</span>
+                </label>
+                <small>When enabled and supported by your API, the AI uses a function call instead of text tags — more
+                    reliable, cleaner messages.</small>
+                <div id="map_tracker_tool_status" style="font-size: 11px; margin-top: 4px; opacity: 0.7;">Checking...
+                </div>
+            </div>
+            <hr />
+            <div class="map-tracker-block">
+                <label for="map_tracker_prompt">Custom Prompt Template</label>
+                <textarea id="map_tracker_prompt" class="text_pole textarea_compact" rows="4"
+                    placeholder="System prompt for location tagging..."></textarea>
+                <div class="flex-container">
+                    <input id="map_tracker_restore_prompt" class="menu_button" type="button" value="Restore Default" />
+                </div>
+            </div>
+            <hr />
+            <div class="map-tracker-block">
+                <label>Map Controls</label>
+                <div class="flex-container">
+                    <input id="map_tracker_open_map" class="menu_button" type="button" value="🗺️ Open Map" />
+                    <input id="map_tracker_clear_history" class="menu_button" type="button" value="🗑️ Clear History" />
+                </div>
+            </div>
+            <hr />
+            <div class="map-tracker-block">
+                <label for="map_tracker_theme">Theme</label>
+                <select id="map_tracker_theme" class="text_pole"></select>
+            </div>
+            <hr />
+            <div class="map-tracker-block map-tracker-color-row">
+                <label for="map_tracker_node_color">Node Color</label>
+                <input type="color" id="map_tracker_node_color" value="#6a9fdf" />
+                <label for="map_tracker_active_color">Active</label>
+                <input type="color" id="map_tracker_active_color" value="#ff6b9d" />
+            </div>
+        </div>
+    </div>
+</div>

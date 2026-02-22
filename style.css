@@ -1,0 +1,561 @@
+/* ═══════════════ Map Tracker — Popout Window ═══════════════ */
+
+#map-tracker-popout {
+    /* Theme-driven custom properties (set by JS) */
+    --mt-pop-bg: linear-gradient(135deg, rgba(12, 14, 28, 0.92), rgba(20, 24, 48, 0.90), rgba(16, 18, 36, 0.94));
+    --mt-pop-border: rgba(120, 140, 200, 0.15);
+    --mt-pop-glow: rgba(80, 100, 180, 0.06);
+    --mt-header-border: rgba(120, 140, 200, 0.08);
+    --mt-panel-bg: rgba(0, 0, 0, 0.15);
+    --mt-panel-border: rgba(120, 140, 200, 0.1);
+    --mt-accent-text: rgba(210, 220, 255, 0.9);
+    --mt-muted-text: rgba(180, 190, 220, 0.55);
+    --mt-char-name: rgba(255, 210, 130, 0.85);
+    --mt-legend-bg: rgba(0, 0, 0, 0.12);
+    --mt-node-color: #6a9fdf;
+    --mt-active-color: #ff6b9d;
+
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    width: 580px;
+    height: 580px;
+    min-width: 420px;
+    min-height: 380px;
+    z-index: 9999;
+    display: none;
+    flex-direction: column;
+    resize: both;
+    overflow: hidden;
+
+    background: var(--mt-pop-bg);
+    backdrop-filter: blur(28px) saturate(1.6);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    border: 1px solid var(--mt-pop-border);
+    border-radius: 16px;
+    box-shadow:
+        0 0 0 1px var(--mt-pop-glow),
+        0 8px 40px rgba(0, 0, 0, 0.55),
+        0 2px 12px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+#map-tracker-popout.open {
+    display: flex;
+}
+
+/* ─── Breadcrumb bar ─── */
+
+#map-tracker-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--mt-header-border);
+    background: rgba(0, 0, 0, 0.1);
+    font-size: 11px;
+    min-height: 28px;
+    transition: border-color 0.4s ease;
+}
+
+#map-tracker-back {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--mt-header-border);
+    color: var(--mt-muted-text);
+    font-size: 14px;
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+#map-tracker-back:hover {
+    background: rgba(120, 140, 220, 0.15);
+    border-color: rgba(120, 140, 200, 0.25);
+    color: var(--mt-accent-text);
+}
+
+#map-tracker-path {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.crumb {
+    color: var(--mt-muted-text);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.crumb:hover {
+    color: var(--mt-accent-text);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.crumb:last-child {
+    color: var(--mt-accent-text);
+    font-weight: 600;
+    cursor: default;
+}
+
+.crumb:last-child:hover {
+    background: none;
+}
+
+.crumb.root {
+    max-width: none;
+}
+
+.crumb-sep {
+    color: var(--mt-muted-text);
+    opacity: 0.4;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+/* ─── Header ─── */
+
+#map-tracker-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: grab;
+    user-select: none;
+    border-bottom: 1px solid var(--mt-header-border);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.0));
+    gap: 8px;
+    transition: border-color 0.4s ease;
+}
+
+#map-tracker-header:active {
+    cursor: grabbing;
+}
+
+#map-tracker-header .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mt-accent-text);
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    transition: color 0.4s ease;
+}
+
+#map-tracker-header .icon {
+    font-size: 18px;
+    filter: drop-shadow(0 0 4px rgba(150, 170, 255, 0.3));
+}
+
+#map-tracker-close {
+    background: none;
+    border: none;
+    color: var(--mt-muted-text);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+#map-tracker-close:hover {
+    color: rgba(255, 130, 160, 0.9);
+    background: rgba(255, 100, 140, 0.1);
+}
+
+/* ─── Zoom ─── */
+
+#map-tracker-zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+#map-tracker-zoom-controls button {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--mt-header-border);
+    color: var(--mt-muted-text);
+    font-size: 14px;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    line-height: 1;
+    padding: 0;
+}
+
+#map-tracker-zoom-controls button:hover {
+    background: rgba(120, 140, 220, 0.15);
+    border-color: rgba(120, 140, 200, 0.25);
+    color: var(--mt-accent-text);
+}
+
+#map-tracker-zoom-level {
+    font-size: 10px;
+    color: var(--mt-muted-text);
+    min-width: 34px;
+    text-align: center;
+    letter-spacing: 0.2px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+}
+
+#map-tracker-3d-toggle {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--mt-header-border);
+    color: var(--mt-muted-text);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    letter-spacing: 0.5px;
+    margin-right: 6px;
+}
+
+#map-tracker-3d-toggle:hover {
+    color: var(--mt-accent-text);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#map-tracker-3d-toggle.active {
+    background: rgba(100, 180, 255, 0.15);
+    border-color: rgba(100, 180, 255, 0.4);
+    color: rgba(140, 210, 255, 0.95);
+    box-shadow: 0 0 8px rgba(100, 180, 255, 0.15);
+}
+
+/* ─── Body (canvas + detail side panel) ─── */
+
+#map-tracker-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+}
+
+#map-tracker-canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    cursor: crosshair;
+}
+
+#map-tracker-canvas-wrap:active {
+    cursor: grabbing;
+}
+
+#map-tracker-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* ─── Detail side panel ─── */
+
+#map-tracker-detail {
+    width: 200px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--mt-panel-border);
+    background: var(--mt-panel-bg);
+    overflow: hidden;
+    font-size: 11px;
+    transition: background 0.4s ease, border-color 0.4s ease;
+}
+
+#map-tracker-detail.hidden {
+    display: none;
+}
+
+#map-tracker-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--mt-header-border);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+#map-tracker-detail-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--mt-accent-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#map-tracker-detail-close {
+    background: none;
+    border: none;
+    color: var(--mt-muted-text);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+#map-tracker-detail-close:hover {
+    color: rgba(255, 150, 170, 0.8);
+}
+
+#map-tracker-detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 140, 200, 0.15) transparent;
+}
+
+/* Detail sections */
+.detail-section {
+    margin-bottom: 12px;
+}
+
+.detail-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--mt-muted-text);
+    margin-bottom: 6px;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.detail-char {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.detail-char-name {
+    font-weight: 600;
+    color: var(--mt-char-name);
+    font-size: 11px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.detail-char-visits {
+    font-size: 9px;
+    color: var(--mt-muted-text);
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.detail-activity {
+    color: var(--mt-muted-text);
+    font-size: 10px;
+    margin-bottom: 8px;
+    padding-left: 20px;
+    line-height: 1.4;
+}
+
+.detail-history-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 10px;
+}
+
+.detail-history-char {
+    color: var(--mt-accent-text);
+    font-weight: 600;
+    flex-shrink: 0;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.65;
+}
+
+.detail-history-act {
+    color: var(--mt-muted-text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.7;
+}
+
+.detail-history-time {
+    color: var(--mt-muted-text);
+    font-size: 9px;
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+.detail-history-more {
+    color: var(--mt-muted-text);
+    font-size: 9px;
+    text-align: center;
+    margin-top: 4px;
+    opacity: 0.4;
+}
+
+#map-tracker-detail-footer {
+    padding: 8px 12px;
+    border-top: 1px solid var(--mt-header-border);
+}
+
+#map-tracker-delete-node {
+    width: 100%;
+    background: rgba(255, 70, 70, 0.08);
+    border: 1px solid rgba(255, 70, 70, 0.15);
+    color: rgba(255, 150, 140, 0.7);
+    font-size: 10px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+#map-tracker-delete-node:hover {
+    background: rgba(255, 70, 70, 0.25);
+    border-color: rgba(255, 70, 70, 0.4);
+    color: #ffa0a0;
+}
+
+/* ─── Legend ─── */
+
+#map-tracker-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    font-size: 11px;
+    color: var(--mt-muted-text);
+    letter-spacing: 0.2px;
+    border-top: 1px solid var(--mt-header-border);
+    background: var(--mt-legend-bg);
+    transition: background 0.4s ease, border-color 0.4s ease, color 0.4s ease;
+}
+
+#map-tracker-legend .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+    box-shadow: 0 0 6px currentColor;
+    transition: background 0.4s ease;
+}
+
+#map-tracker-legend .dot.visited {
+    background: var(--mt-node-color);
+}
+
+#map-tracker-legend .dot.active {
+    background: var(--mt-active-color);
+}
+
+#map-tracker-loc-count {
+    margin-left: auto;
+    opacity: 0.7;
+}
+
+#map-tracker-clear-all {
+    background: rgba(255, 80, 80, 0.08);
+    border: 1px solid rgba(255, 80, 80, 0.15);
+    color: rgba(255, 150, 150, 0.6);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+#map-tracker-clear-all:hover {
+    background: rgba(255, 80, 80, 0.2);
+    border-color: rgba(255, 80, 80, 0.35);
+    color: rgba(255, 180, 180, 0.9);
+}
+
+#map-tracker-version {
+    font-size: 9px;
+    color: var(--mt-muted-text);
+    opacity: 0.35;
+    letter-spacing: 0.3px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════ Settings Panel ═══════════════ */
+
+.map-tracker-settings .inline-drawer-header {
+    gap: 8px;
+}
+
+.map-tracker-settings textarea {
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 60px;
+}
+
+.map-tracker-settings .map-tracker-color-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.map-tracker-settings .map-tracker-color-row label {
+    font-size: 12px;
+    min-width: 50px;
+}
+
+.map-tracker-settings .map-tracker-color-row input[type="color"] {
+    width: 36px;
+    height: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+    padding: 1px;
+}
+
+.map-tracker-settings .map-tracker-btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.map-tracker-settings select {
+    font-size: 12px;
+}
