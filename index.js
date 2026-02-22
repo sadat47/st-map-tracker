@@ -836,7 +836,7 @@ function setupCanvasInteractions() {
         if (is3DMode && orbitStart) {
             // Orbit: horizontal drag = Y-axis rotation, vertical drag = X-axis tilt
             orbit.angleX = orbitStart.aX + dx * 0.005;
-            orbit.angleY = Math.max(-0.2, Math.min(1.2, orbitStart.aY + dy * 0.004));
+            orbit.angleY = orbitStart.aY + dy * 0.004;
         } else {
             camera.x = panStart.camX + dx;
             camera.y = panStart.camY + dy;
@@ -1304,7 +1304,6 @@ function draw3DGrid(W, H, t) {
     for (let gx = -gridExtent; gx <= gridExtent; gx += gridSpacing) {
         const p1 = projectIso(W / 2 + gx, H / 2 - gridExtent, gridZ, W, H);
         const p2 = projectIso(W / 2 + gx, H / 2 + gridExtent, gridZ, W, H);
-        // Fade with distance
         const fade = 1 - Math.abs(gx) / gridExtent;
         mapCtx.globalAlpha = fade * 0.5;
         mapCtx.beginPath();
@@ -1324,6 +1323,37 @@ function draw3DGrid(W, H, t) {
         mapCtx.lineTo(p2.x, p2.y);
         mapCtx.stroke();
     }
+
+    // ─── Compass rose (cardinal direction labels) ───
+    mapCtx.globalAlpha = 1;
+    const compassDist = gridExtent * 0.85;
+    const compassZ = gridZ - 5;
+    const dirs = [
+        { label: 'N', dx: 0, dy: -compassDist, color: `rgba(${t.edgeActiveColor}, 0.7)` },
+        { label: 'S', dx: 0, dy: compassDist, color: `rgba(${t.edgeColor}, 0.4)` },
+        { label: 'E', dx: compassDist, dy: 0, color: `rgba(${t.edgeColor}, 0.4)` },
+        { label: 'W', dx: -compassDist, dy: 0, color: `rgba(${t.edgeColor}, 0.4)` },
+    ];
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'middle';
+    mapCtx.font = '600 13px "Segoe UI", system-ui, sans-serif';
+    for (const d of dirs) {
+        const p = projectIso(W / 2 + d.dx, H / 2 + d.dy, compassZ, W, H);
+        // Glow behind letter
+        mapCtx.save();
+        mapCtx.shadowColor = d.color;
+        mapCtx.shadowBlur = 8;
+        mapCtx.fillStyle = d.color;
+        mapCtx.fillText(d.label, p.x, p.y);
+        mapCtx.restore();
+    }
+
+    // ─── Origin crosshair ───
+    const center = projectIso(W / 2, H / 2, gridZ, W, H);
+    mapCtx.beginPath();
+    mapCtx.arc(center.x, center.y, 3, 0, Math.PI * 2);
+    mapCtx.fillStyle = `rgba(${t.edgeActiveColor}, 0.25)`;
+    mapCtx.fill();
 
     mapCtx.globalAlpha = 1;
     mapCtx.restore();
@@ -1609,7 +1639,7 @@ function renderFrame() {
         // Disc / Sphere rendering
         if (is3DMode) {
             // === 3D Sphere ===
-            // Base sphere body — dark fill
+            // Base sphere body
             mapCtx.beginPath();
             mapCtx.arc(node.x, node.y, baseR, 0, Math.PI * 2);
             const bodyGrad = mapCtx.createRadialGradient(
@@ -1623,33 +1653,57 @@ function renderFrame() {
             mapCtx.fillStyle = bodyGrad;
             mapCtx.fill();
 
-            // Rim edge
-            mapCtx.lineWidth = isCurrent ? 1.5 : 0.8;
-            mapCtx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isCurrent ? 0.5 : 0.2})`;
+            // Fresnel rim glow (bright edge ring)
+            mapCtx.save();
+            mapCtx.beginPath();
+            mapCtx.arc(node.x, node.y, baseR, 0, Math.PI * 2);
+            mapCtx.lineWidth = isCurrent ? 3 : 2;
+            const rimAlpha = isCurrent ? 0.4 : 0.2;
+            const fresnelGrad = mapCtx.createRadialGradient(node.x, node.y, baseR * 0.75, node.x, node.y, baseR);
+            fresnelGrad.addColorStop(0, 'rgba(255,255,255,0)');
+            fresnelGrad.addColorStop(0.7, `rgba(${Math.min(255, rgb.r + 80)}, ${Math.min(255, rgb.g + 80)}, ${Math.min(255, rgb.b + 80)}, ${rimAlpha * 0.5})`);
+            fresnelGrad.addColorStop(1, `rgba(${Math.min(255, rgb.r + 120)}, ${Math.min(255, rgb.g + 120)}, ${Math.min(255, rgb.b + 120)}, ${rimAlpha})`);
+            mapCtx.strokeStyle = fresnelGrad;
             mapCtx.stroke();
+            mapCtx.restore();
+
+            // Latitude band (animated equator-like ring)
+            mapCtx.save();
+            const bandAngle = starTime * 0.3;
+            const bandY = node.y + Math.sin(bandAngle) * baseR * 0.15;
+            const bandRx = baseR * 0.92;
+            const bandRy = baseR * 0.15 + Math.abs(Math.cos(bandAngle)) * baseR * 0.08;
+            mapCtx.beginPath();
+            mapCtx.ellipse(node.x, bandY, bandRx, bandRy, 0, 0, Math.PI * 2);
+            mapCtx.lineWidth = 0.8;
+            mapCtx.strokeStyle = `rgba(${Math.min(255, rgb.r + 60)}, ${Math.min(255, rgb.g + 60)}, ${Math.min(255, rgb.b + 60)}, ${isCurrent ? 0.18 : 0.08})`;
+            mapCtx.stroke();
+            mapCtx.restore();
 
             // Specular highlight spot (upper-left)
             const hlX = node.x - baseR * 0.3;
             const hlY = node.y - baseR * 0.3;
             const hlR = baseR * 0.35;
             const specGrad = mapCtx.createRadialGradient(hlX, hlY, 0, hlX, hlY, hlR);
-            specGrad.addColorStop(0, `rgba(255, 255, 255, ${isCurrent ? 0.55 : 0.35})`);
-            specGrad.addColorStop(0.5, `rgba(255, 255, 255, ${isCurrent ? 0.15 : 0.08})`);
+            specGrad.addColorStop(0, `rgba(255, 255, 255, ${isCurrent ? 0.6 : 0.4})`);
+            specGrad.addColorStop(0.4, `rgba(255, 255, 255, ${isCurrent ? 0.2 : 0.1})`);
             specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
             mapCtx.beginPath();
             mapCtx.arc(hlX, hlY, hlR, 0, Math.PI * 2);
             mapCtx.fillStyle = specGrad;
             mapCtx.fill();
 
-            // Secondary rim light (bottom-right, subtle)
-            const rimX = node.x + baseR * 0.25;
-            const rimY = node.y + baseR * 0.35;
-            const rimGrad = mapCtx.createRadialGradient(rimX, rimY, 0, rimX, rimY, baseR * 0.4);
-            rimGrad.addColorStop(0, `rgba(${Math.min(255, rgb.r + 60)}, ${Math.min(255, rgb.g + 60)}, ${Math.min(255, rgb.b + 60)}, 0.08)`);
-            rimGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            // Environment reflection (color-shifted secondary highlight)
+            const envX = node.x + baseR * 0.2;
+            const envY = node.y + baseR * 0.25;
+            const envR = baseR * 0.45;
+            const envHue = (t.starHueA + t.starHueB) / 2;
+            const envGrad = mapCtx.createRadialGradient(envX, envY, 0, envX, envY, envR);
+            envGrad.addColorStop(0, `hsla(${envHue}, ${t.starSat}%, 70%, ${isCurrent ? 0.1 : 0.05})`);
+            envGrad.addColorStop(1, 'rgba(0,0,0,0)');
             mapCtx.beginPath();
-            mapCtx.arc(rimX, rimY, baseR * 0.4, 0, Math.PI * 2);
-            mapCtx.fillStyle = rimGrad;
+            mapCtx.arc(envX, envY, envR, 0, Math.PI * 2);
+            mapCtx.fillStyle = envGrad;
             mapCtx.fill();
         } else {
             // === 2D Frosted glass disc ===
