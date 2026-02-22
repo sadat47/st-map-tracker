@@ -808,6 +808,9 @@ function setupCanvasInteractions() {
     const wrap = document.getElementById('map-tracker-canvas-wrap');
     if (!wrap) return;
 
+    // Prevent context menu on right-click (we use M2 for panning)
+    wrap.addEventListener('contextmenu', (e) => e.preventDefault());
+
     wrap.addEventListener('wheel', (e) => {
         e.preventDefault();
         const rect = wrap.getBoundingClientRect();
@@ -816,12 +819,16 @@ function setupCanvasInteractions() {
         applyZoom(e.deltaY < 0 ? 1.12 : 1 / 1.12, mx, my);
     }, { passive: false });
 
+    let dragButton = -1;
+
     wrap.addEventListener('mousedown', (e) => {
-        if (e.button === 0 || e.button === 1) {
+        if (e.button === 0 || e.button === 1 || e.button === 2) {
             isPanning = true;
             panMoved = false;
+            dragButton = e.button;
             panStart = { x: e.clientX, y: e.clientY, camX: camera.x, camY: camera.y };
-            if (is3DMode) {
+            if (is3DMode && e.button === 0) {
+                // M1 in 3D = orbit
                 orbitStart = { x: e.clientX, y: e.clientY, aX: orbit.angleX, aY: orbit.angleY };
             }
             e.preventDefault();
@@ -833,11 +840,12 @@ function setupCanvasInteractions() {
         const dx = e.clientX - panStart.x;
         const dy = e.clientY - panStart.y;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) panMoved = true;
-        if (is3DMode && orbitStart) {
-            // Orbit: horizontal drag = Y-axis rotation, vertical drag = X-axis tilt
+        if (is3DMode && dragButton === 0 && orbitStart) {
+            // M1 in 3D = orbit rotation
             orbit.angleX = orbitStart.aX + dx * 0.005;
             orbit.angleY = orbitStart.aY + dy * 0.004;
         } else {
+            // M2 in 3D = pan, or any drag in 2D = pan
             camera.x = panStart.camX + dx;
             camera.y = panStart.camY + dy;
         }
@@ -847,6 +855,7 @@ function setupCanvasInteractions() {
         if (isPanning && !panMoved && e.button === 0) handleCanvasClick(e);
         isPanning = false;
         orbitStart = null;
+        dragButton = -1;
     });
 }
 
@@ -1291,13 +1300,13 @@ function projectIso(x, y, z, W, H) {
 }
 
 function draw3DGrid(W, H, t) {
-    const gridColor = `rgba(${t.edgeColor}, 0.06)`;
+    const gridColor = `rgba(${t.edgeColor}, 0.15)`;
     const gridSpacing = 60;
     const gridExtent = Math.max(W, H) * 0.8;
-    const gridZ = 80; // Floor plane z-offset
+    const gridZ = 80;
 
     mapCtx.save();
-    mapCtx.lineWidth = 0.5;
+    mapCtx.lineWidth = 0.6;
     mapCtx.strokeStyle = gridColor;
 
     // Draw grid lines in X direction
@@ -1305,7 +1314,7 @@ function draw3DGrid(W, H, t) {
         const p1 = projectIso(W / 2 + gx, H / 2 - gridExtent, gridZ, W, H);
         const p2 = projectIso(W / 2 + gx, H / 2 + gridExtent, gridZ, W, H);
         const fade = 1 - Math.abs(gx) / gridExtent;
-        mapCtx.globalAlpha = fade * 0.5;
+        mapCtx.globalAlpha = fade * 0.7;
         mapCtx.beginPath();
         mapCtx.moveTo(p1.x, p1.y);
         mapCtx.lineTo(p2.x, p2.y);
@@ -1317,7 +1326,7 @@ function draw3DGrid(W, H, t) {
         const p1 = projectIso(W / 2 - gridExtent, H / 2 + gy, gridZ, W, H);
         const p2 = projectIso(W / 2 + gridExtent, H / 2 + gy, gridZ, W, H);
         const fade = 1 - Math.abs(gy) / gridExtent;
-        mapCtx.globalAlpha = fade * 0.5;
+        mapCtx.globalAlpha = fade * 0.7;
         mapCtx.beginPath();
         mapCtx.moveTo(p1.x, p1.y);
         mapCtx.lineTo(p2.x, p2.y);
