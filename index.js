@@ -266,6 +266,8 @@ let layerTransition = { active: false, startTime: 0, duration: 400, direction: '
 
 // 3D mode
 let is3DMode = false;
+let orbit = { angleX: 0, angleY: 0.55 }; // horizontal (Y-axis rotation), vertical tilt (X-axis rotation)
+let orbitStart = null;
 
 /* ──────────────────── helpers ──────────────────── */
 
@@ -819,6 +821,9 @@ function setupCanvasInteractions() {
             isPanning = true;
             panMoved = false;
             panStart = { x: e.clientX, y: e.clientY, camX: camera.x, camY: camera.y };
+            if (is3DMode) {
+                orbitStart = { x: e.clientX, y: e.clientY, aX: orbit.angleX, aY: orbit.angleY };
+            }
             e.preventDefault();
         }
     });
@@ -828,13 +833,20 @@ function setupCanvasInteractions() {
         const dx = e.clientX - panStart.x;
         const dy = e.clientY - panStart.y;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) panMoved = true;
-        camera.x = panStart.camX + dx;
-        camera.y = panStart.camY + dy;
+        if (is3DMode && orbitStart) {
+            // Orbit: horizontal drag = Y-axis rotation, vertical drag = X-axis tilt
+            orbit.angleX = orbitStart.aX + dx * 0.005;
+            orbit.angleY = Math.max(-0.2, Math.min(1.2, orbitStart.aY + dy * 0.004));
+        } else {
+            camera.x = panStart.camX + dx;
+            camera.y = panStart.camY + dy;
+        }
     });
 
     window.addEventListener('mouseup', (e) => {
         if (isPanning && !panMoved && e.button === 0) handleCanvasClick(e);
         isPanning = false;
+        orbitStart = null;
     });
 }
 
@@ -1250,24 +1262,29 @@ function drawAmbientParticles(W, H) {
 }
 
 /* ─── 3D Projection helpers ─── */
-
-const ISO_TILT = 0.55; // Tilt angle (radians) — ~31°
 const ISO_PERSPECTIVE = 800; // Perspective depth
 
 function projectIso(x, y, z, W, H) {
     // Center coordinates
-    const cx = x - W / 2;
-    const cy = y - H / 2;
+    let cx = x - W / 2;
+    let cy = y - H / 2;
+    let cz = z || 0;
 
-    // Apply tilt (rotate around X axis)
-    const cosT = Math.cos(ISO_TILT);
-    const sinT = Math.sin(ISO_TILT);
-    const ry = cy * cosT - z * sinT;
-    const rz = cy * sinT + z * cosT;
+    // Apply Y-axis rotation (horizontal orbit)
+    const cosY = Math.cos(orbit.angleX);
+    const sinY = Math.sin(orbit.angleX);
+    const rx = cx * cosY - cz * sinY;
+    const rz1 = cx * sinY + cz * cosY;
+
+    // Apply X-axis rotation (vertical tilt)
+    const cosX = Math.cos(orbit.angleY);
+    const sinX = Math.sin(orbit.angleY);
+    const ry = cy * cosX - rz1 * sinX;
+    const rz = cy * sinX + rz1 * cosX;
 
     // Perspective division
     const perspScale = ISO_PERSPECTIVE / (ISO_PERSPECTIVE + rz);
-    const px = cx * perspScale + W / 2;
+    const px = rx * perspScale + W / 2;
     const py = ry * perspScale + H / 2;
 
     return { x: px, y: py, scale: perspScale, depth: rz };
@@ -1525,11 +1542,14 @@ function renderFrame() {
             const charCount = Object.keys(node.characters).length;
             const rawR = 28 + Math.min(charCount * 3, 12) + Math.min(node.visits * 0.5, 6);
             const scaledR = rawR * (node._scale || 1);
-            const shadowY = node.y + scaledR * 0.8;
+            const shadowY = node.y + scaledR * 1.2;
             mapCtx.save();
+            const shadowGrad = mapCtx.createRadialGradient(node.x, shadowY, 0, node.x, shadowY, scaledR * 1.3);
+            shadowGrad.addColorStop(0, 'rgba(0,0,0,0.18)');
+            shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            mapCtx.fillStyle = shadowGrad;
             mapCtx.beginPath();
-            mapCtx.ellipse(node.x, shadowY, scaledR * 1.1, scaledR * 0.3, 0, 0, Math.PI * 2);
-            mapCtx.fillStyle = 'rgba(0,0,0,0.15)';
+            mapCtx.ellipse(node.x, shadowY, scaledR * 1.3, scaledR * 0.35, 0, 0, Math.PI * 2);
             mapCtx.fill();
             mapCtx.restore();
         }
@@ -1550,11 +1570,7 @@ function renderFrame() {
         if (isSelected) {
             mapCtx.save();
             mapCtx.beginPath();
-            if (is3DMode) {
-                mapCtx.ellipse(node.x, node.y, baseR + 10, (baseR + 10) * 0.65, 0, 0, Math.PI * 2);
-            } else {
-                mapCtx.arc(node.x, node.y, baseR + 10, 0, Math.PI * 2);
-            }
+            mapCtx.arc(node.x, node.y, baseR + 10, 0, Math.PI * 2);
             mapCtx.lineWidth = 2;
             mapCtx.strokeStyle = t.selectionRing;
             mapCtx.setLineDash([4, 4]);
@@ -1590,41 +1606,76 @@ function renderFrame() {
             mapCtx.restore();
         }
 
-        // Disc with frosted glass effect
-        const dg = mapCtx.createRadialGradient(node.x - baseR * 0.25, node.y - baseR * 0.25, 0, node.x, node.y, baseR);
+        // Disc / Sphere rendering
         if (is3DMode) {
-            // 3D sphere shading — bright upper-left, dark lower-right
-            dg.addColorStop(0, `rgba(${Math.min(255, rgb.r + 90)}, ${Math.min(255, rgb.g + 90)}, ${Math.min(255, rgb.b + 90)}, 0.5)`);
-            dg.addColorStop(0.4, `rgba(${Math.min(255, rgb.r + 30)}, ${Math.min(255, rgb.g + 30)}, ${Math.min(255, rgb.b + 30)}, 0.25)`);
-            dg.addColorStop(0.8, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`);
-            dg.addColorStop(1, `rgba(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)}, 0.06)`);
+            // === 3D Sphere ===
+            // Base sphere body — dark fill
+            mapCtx.beginPath();
+            mapCtx.arc(node.x, node.y, baseR, 0, Math.PI * 2);
+            const bodyGrad = mapCtx.createRadialGradient(
+                node.x - baseR * 0.35, node.y - baseR * 0.35, baseR * 0.05,
+                node.x, node.y, baseR
+            );
+            bodyGrad.addColorStop(0, `rgba(${Math.min(255, rgb.r + 120)}, ${Math.min(255, rgb.g + 120)}, ${Math.min(255, rgb.b + 120)}, 0.85)`);
+            bodyGrad.addColorStop(0.35, `rgba(${Math.min(255, rgb.r + 40)}, ${Math.min(255, rgb.g + 40)}, ${Math.min(255, rgb.b + 40)}, 0.65)`);
+            bodyGrad.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.45)`);
+            bodyGrad.addColorStop(1, `rgba(${Math.max(0, rgb.r - 60)}, ${Math.max(0, rgb.g - 60)}, ${Math.max(0, rgb.b - 60)}, 0.3)`);
+            mapCtx.fillStyle = bodyGrad;
+            mapCtx.fill();
+
+            // Rim edge
+            mapCtx.lineWidth = isCurrent ? 1.5 : 0.8;
+            mapCtx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isCurrent ? 0.5 : 0.2})`;
+            mapCtx.stroke();
+
+            // Specular highlight spot (upper-left)
+            const hlX = node.x - baseR * 0.3;
+            const hlY = node.y - baseR * 0.3;
+            const hlR = baseR * 0.35;
+            const specGrad = mapCtx.createRadialGradient(hlX, hlY, 0, hlX, hlY, hlR);
+            specGrad.addColorStop(0, `rgba(255, 255, 255, ${isCurrent ? 0.55 : 0.35})`);
+            specGrad.addColorStop(0.5, `rgba(255, 255, 255, ${isCurrent ? 0.15 : 0.08})`);
+            specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            mapCtx.beginPath();
+            mapCtx.arc(hlX, hlY, hlR, 0, Math.PI * 2);
+            mapCtx.fillStyle = specGrad;
+            mapCtx.fill();
+
+            // Secondary rim light (bottom-right, subtle)
+            const rimX = node.x + baseR * 0.25;
+            const rimY = node.y + baseR * 0.35;
+            const rimGrad = mapCtx.createRadialGradient(rimX, rimY, 0, rimX, rimY, baseR * 0.4);
+            rimGrad.addColorStop(0, `rgba(${Math.min(255, rgb.r + 60)}, ${Math.min(255, rgb.g + 60)}, ${Math.min(255, rgb.b + 60)}, 0.08)`);
+            rimGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            mapCtx.beginPath();
+            mapCtx.arc(rimX, rimY, baseR * 0.4, 0, Math.PI * 2);
+            mapCtx.fillStyle = rimGrad;
+            mapCtx.fill();
         } else {
+            // === 2D Frosted glass disc ===
+            const dg = mapCtx.createRadialGradient(node.x - baseR * 0.25, node.y - baseR * 0.25, 0, node.x, node.y, baseR);
             dg.addColorStop(0, `rgba(${Math.min(255, rgb.r + 60)}, ${Math.min(255, rgb.g + 60)}, ${Math.min(255, rgb.b + 60)}, 0.4)`);
             dg.addColorStop(0.6, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`);
             dg.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`);
-        }
-        mapCtx.beginPath();
-        if (is3DMode) {
-            mapCtx.ellipse(node.x, node.y, baseR, baseR * 0.65, 0, 0, Math.PI * 2);
-        } else {
+            mapCtx.beginPath();
             mapCtx.arc(node.x, node.y, baseR, 0, Math.PI * 2);
+            mapCtx.fillStyle = dg;
+            mapCtx.fill();
+
+            // Rim highlight
+            mapCtx.lineWidth = isCurrent ? 2.5 : 1.2;
+            mapCtx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isCurrent ? 0.85 : 0.35})`;
+            mapCtx.stroke();
+
+            // Top highlight arc (glass shine)
+            mapCtx.save();
+            mapCtx.beginPath();
+            mapCtx.arc(node.x, node.y, baseR - 2, -Math.PI * 0.7, -Math.PI * 0.3);
+            mapCtx.lineWidth = 1;
+            mapCtx.strokeStyle = `rgba(255, 255, 255, ${isCurrent ? 0.12 : 0.05})`;
+            mapCtx.stroke();
+            mapCtx.restore();
         }
-        mapCtx.fillStyle = dg;
-        mapCtx.fill();
-
-        // Rim highlight
-        mapCtx.lineWidth = isCurrent ? 2.5 : 1.2;
-        mapCtx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${isCurrent ? 0.85 : 0.35})`;
-        mapCtx.stroke();
-
-        // Top highlight arc (glass shine)
-        mapCtx.save();
-        mapCtx.beginPath();
-        mapCtx.arc(node.x, node.y, baseR - 2, -Math.PI * 0.7, -Math.PI * 0.3);
-        mapCtx.lineWidth = 1;
-        mapCtx.strokeStyle = `rgba(255, 255, 255, ${isCurrent ? 0.12 : 0.05})`;
-        mapCtx.stroke();
-        mapCtx.restore();
 
         // Inner ring for current
         if (isCurrent) {
